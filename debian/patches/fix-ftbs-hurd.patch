@@ -1,0 +1,61 @@
+Description: Fix FTBFS on GNU/Hurd
+ Undefine RAW, which is defined as an enum internally, if the system defines it
+ (on Hurd it's an IOCTL).
+ Add 'gnu' to the WAF configure script.
+ Check if IP_ADD/DROP_SOURCE_MEMBERSHIP socket options are available before
+ using them.
+Author: Luca Boccassi <bluca@debian.org>
+Bug-Debian: https://bugs.debian.org/884485
+Forwarded: https://publists.nrl.navy.mil/pipermail/norm-dev/2017-December/001252.html
+--- a/protolib/include/protoSocket.h
++++ b/protolib/include/protoSocket.h
+@@ -23,6 +23,9 @@ typedef GUID *LPGUID;
+ #include <unistd.h>  // for read()
+ #include <stdio.h>
+ #endif // if/else WIN32/UNIX
++#ifdef RAW
++#undef RAW
++#endif
+ /**
+  * @class ProtoSocket
+  *
+--- a/protolib/src/common/protoSocket.cpp
++++ b/protolib/src/common/protoSocket.cpp
+@@ -1923,7 +1923,7 @@ bool ProtoSocket::JoinGroup(const ProtoA
+         else
+         {
+             // SSM join   
+-#ifdef _PROTOSOCKET_IGMPV3_SSM
++#if defined(_PROTOSOCKET_IGMPV3_SSM) && defined(IP_ADD_SOURCE_MEMBERSHIP)
+             struct ip_mreq_source mreq;
+ #ifdef HAVE_IPV6
+             mreq.imr_multiaddr = ((struct sockaddr_in*)&groupAddress.GetSockAddrStorage())->sin_addr;
+@@ -2057,7 +2057,7 @@ bool ProtoSocket::LeaveGroup(const Proto
+         else
+         {
+             // SSM
+-#ifdef _PROTOSOCKET_IGMPV3_SSM
++#if defined(_PROTOSOCKET_IGMPV3_SSM) && defined(IP_DROP_SOURCE_MEMBERSHIP)
+             struct ip_mreq_source   mreq;
+ #ifdef HAVE_IPV6
+             mreq.imr_multiaddr = ((struct sockaddr_in*)&groupAddress.GetSockAddrStorage())->sin_addr;
+--- a/protolib/wscript
++++ b/protolib/wscript
+@@ -55,7 +55,7 @@ def configure(ctx):
+     # Use this USE variable to add flags to protolib's compilation
+     ctx.env.USE_BUILD_PROTOLIB += ['BUILD_PROTOLIB']
+ 
+-    if system in ('linux', 'darwin', 'freebsd'):
++    if system in ('linux', 'darwin', 'freebsd', 'gnu'):
+         ctx.env.DEFINES_BUILD_PROTOLIB += ['UNIX', 'HAVE_DIRFD', 'HAVE_IPV6',
+                 'HAVE_ASSERT', 'HAVE_GETLOGIN']
+ 
+@@ -172,7 +172,7 @@ def build(ctx):
+         ]]
+     )
+ 
+-    if system in ('linux', 'darwin', 'freebsd'):
++    if system in ('linux', 'darwin', 'freebsd', 'gnu'):
+         protolib.source.extend(['src/unix/{0}.cpp'.format(x) for x in [
+             'unixNet',
+             'unixSerial',

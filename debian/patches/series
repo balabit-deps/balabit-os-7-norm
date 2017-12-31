@@ -1,0 +1,3 @@
+fix-gcc7-build.patch
+fix-ftbs-big-endian.patch
+fix-ftbs-hurd.patch

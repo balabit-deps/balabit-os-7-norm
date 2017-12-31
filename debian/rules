@@ -1,0 +1,34 @@
+#!/usr/bin/make -f
+#export DH_VERBOSE=1
+
+# For SOURCE_DATE_EPOCH, used in debian/repack-waf by uscan in get-orig-source
+include /usr/share/dpkg/default.mk
+
+# On older distros +pie will add -fPIE -pie to the library linkage, which breaks
+# it, -fPIC is enough
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie
+WAF = ./waf -v
+
+%:
+	dh $@ --parallel
+
+get-orig-source:
+	uscan --force-download --download-current-version --destdir=. -v
+
+override_dh_auto_configure:
+	$(WAF) configure --prefix=/usr --libdir=/usr/lib/$(DEB_HOST_MULTIARCH)
+
+override_dh_auto_build:
+	$(WAF) build
+
+override_dh_auto_install:
+	$(WAF) install --destdir=$(CURDIR)/debian/tmp
+	install -d debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig
+	sed -e "s/@VERSION@/$(DEB_VERSION_UPSTREAM)/" \
+                -e "s|@DEB_HOST_MULTIARCH@|$(DEB_HOST_MULTIARCH)|g" \
+                debian/norm.pc.in > \
+		debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/norm.pc
+
+override_dh_auto_clean:
+	$(WAF) distclean
+	find waflib -name "*.pyc" -delete
